@@ -1,0 +1,10 @@
+[package]
+name = "libtos"
+authors = ["honnip <git at papepati dot page>"]
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+thiserror = "1"
+flate2 = "1"
+path-clean = "0.1"
