@@ -89,11 +89,11 @@ impl<R: std::io::Read> IpfCrypto<R> {
 impl<R: std::io::Read> std::io::Read for IpfCrypto<R> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         let result = self.reader.read(buf);
-        for index in 0..buf.len() {
+        for (index, byte) in buf.iter_mut().enumerate() {
             if index % 2 == 0 {
                 match self.mode {
-                    IpfCryptoMode::Decrypt => buf[index] = self.keys.decrypt_byte(buf[index]),
-                    IpfCryptoMode::Encrypt => buf[index] = self.keys.encrypt_byte(buf[index]),
+                    IpfCryptoMode::Decrypt => *byte = self.keys.decrypt_byte(*byte),
+                    IpfCryptoMode::Encrypt => *byte = self.keys.encrypt_byte(*byte),
                     IpfCryptoMode::Stored => (),
                 }
             }

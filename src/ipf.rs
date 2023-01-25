@@ -22,7 +22,7 @@ impl IpfEntry<'_> {
         PathBuf::from(self.header.archive_name.as_str()).clean()
     }
 
-    /// Get path of entry exclude archive name.
+    /// Get path of entry excluding archive name.
     /// e.g. event_banner/event1234.png
     pub fn path(&self) -> PathBuf {
         PathBuf::from(self.header.file_name.as_str()).clean()
@@ -35,14 +35,20 @@ impl IpfEntry<'_> {
         f.clean()
     }
 
+    /// Switch to encrypt mode
+    /// read/write on this entry will be encrypted
     pub fn encrypt(self) {
         self.reader.encrypt();
     }
 
+    /// Switch to decrypt mode
+    /// read/write on this entry will be decrypted
     pub fn decrypt(self) {
         self.reader.decrypt();
     }
 
+    /// switch to stored mode
+    /// read/write on this entry will not be encrypted/decrypted
     pub fn stored(self) {
         self.reader.stored();
     }
@@ -58,8 +64,10 @@ impl Read for IpfEntry<'_> {
 pub(crate) struct IpfEntryHeader {
     file_name: String,
     archive_name: String,
+    #[allow(dead_code)]
     crc32: u32,
     compressed_size: u32,
+    #[allow(dead_code)]
     uncompressed_size: u32,
     data_offset: u32,
 }
@@ -148,7 +156,7 @@ impl<'a> IpfEntryReader<'a> {
     }
 }
 
-impl<'a> Read for IpfEntryReader<'_> {
+impl Read for IpfEntryReader<'_> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         match self {
             IpfEntryReader::Stored(r) => r.read(buf),
@@ -160,16 +168,20 @@ impl<'a> Read for IpfEntryReader<'_> {
 pub(crate) struct IpfArchiveHeader {
     pub(crate) file_count: u16,
     pub(crate) local_file_offset: u32,
+    #[allow(dead_code)]
     pub(crate) header_offset: u32,
+    #[allow(dead_code)]
     pub(crate) signature: [u8; 4],
+    #[allow(dead_code)]
     pub(crate) base_revision: u32,
+    #[allow(dead_code)]
     pub(crate) revision: u32,
 }
 
 impl IpfArchiveHeader {
     fn parse(mut reader: (impl Read + Seek)) -> IpfResult<Self> {
         let mut buffer = [0u8; 24];
-        if let Err(_) = reader.seek(SeekFrom::End(-24)) {
+        if reader.seek(SeekFrom::End(-24)).is_err() {
             return Err(IpfError::InvalidArchive("Could not seek to header"));
         }
         reader.read_exact(&mut buffer)?;
@@ -188,6 +200,7 @@ impl IpfArchiveHeader {
 
 pub struct IpfArchive<R> {
     reader: R,
+    #[allow(dead_code)]
     header: IpfArchiveHeader,
     files: Vec<IpfEntryHeader>,
 }
@@ -217,9 +230,14 @@ impl<R: Read + Seek> IpfArchive<R> {
         })
     }
 
-    // Length of files
+    /// Length of files
     pub fn len(&self) -> usize {
         self.files.len()
+    }
+
+    /// whether the archive is empty
+    pub fn is_empty(&self) -> bool {
+        self.files.is_empty()
     }
 
     pub fn by_index(&mut self, index: usize) -> IpfResult<IpfEntry> {
