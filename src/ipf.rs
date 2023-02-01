@@ -36,19 +36,19 @@ impl IpfEntry<'_> {
     }
 
     /// Switch to encrypt mode
-    /// read/write on this entry will be encrypted
+    /// read/write encrypted bytes
     pub fn encrypt(self) {
         self.reader.encrypt();
     }
 
     /// Switch to decrypt mode
-    /// read/write on this entry will be decrypted
+    /// read/write decrypted bytes
     pub fn decrypt(self) {
         self.reader.decrypt();
     }
 
     /// switch to stored mode
-    /// read/write on this entry will not be encrypted/decrypted
+    /// read/write pure bytes
     pub fn stored(self) {
         self.reader.stored();
     }
@@ -110,6 +110,19 @@ impl IpfEntryHeader {
         })
     }
 
+    pub fn into_bytes(self) -> Vec<u8> {
+        let mut array = Vec::new();
+        array.append(&mut self.file_name.len().to_le_bytes().into());
+        array.append(&mut self.crc32.to_le_bytes().into());
+        array.append(&mut self.compressed_size.to_le_bytes().into());
+        array.append(&mut self.uncompressed_size.to_le_bytes().into());
+        array.append(&mut self.data_offset.to_le_bytes().into());
+        array.append(&mut self.archive_name.len().to_le_bytes().into());
+        array.append(&mut self.archive_name.as_bytes().into());
+        array.append(&mut self.file_name.as_bytes().into());
+        array
+    }
+
     /// do not compress and crypt these extensions
     fn worth_compress(&self) -> bool {
         const NOT_WORTH: [&str; 3] = ["jpg", "fsb", "mp3"];
@@ -125,6 +138,12 @@ impl IpfEntryHeader {
             }
         }
         true
+    }
+}
+
+impl From<IpfEntryHeader> for Vec<u8> {
+    fn from(header: IpfEntryHeader) -> Vec<u8> {
+        header.into_bytes()
     }
 }
 
@@ -195,6 +214,24 @@ impl IpfArchiveHeader {
             base_revision: u32::from_le_bytes(buffer[16..20].try_into().unwrap()),
             revision: u32::from_le_bytes(buffer[20..24].try_into().unwrap()),
         })
+    }
+
+    pub fn into_bytes(self) -> Vec<u8> {
+        let mut vec = Vec::with_capacity(24);
+        vec.extend_from_slice(&self.file_count.to_le_bytes());
+        vec.extend_from_slice(&self.local_file_offset.to_le_bytes());
+        vec.extend_from_slice(&[0u8; 2]);
+        vec.extend_from_slice(&self.header_offset.to_le_bytes());
+        vec.extend_from_slice(&self.signature);
+        vec.extend_from_slice(&self.base_revision.to_le_bytes());
+        vec.extend_from_slice(&self.revision.to_le_bytes());
+        vec
+    }
+}
+
+impl From<IpfArchiveHeader> for Vec<u8> {
+    fn from(header: IpfArchiveHeader) -> Vec<u8> {
+        header.into_bytes()
     }
 }
 
