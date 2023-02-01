@@ -1,7 +1,7 @@
+mod crypto;
+mod entry;
+mod error;
 mod ipf;
-mod ipf_crypto;
 
-mod result;
-
+pub use error::{IpfError, Result};
 pub use ipf::IpfArchive;
-pub use result::{IpfError, IpfResult};

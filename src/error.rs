@@ -1,8 +1,7 @@
 use thiserror::Error as ThisError;
 
-pub type IpfResult<T> = Result<T, IpfError>;
+pub type Result<T> = std::result::Result<T, IpfError>;
 
-/// Error type for Ipf
 #[derive(Debug, ThisError)]
 pub enum IpfError {
     /// An error caused by I/O

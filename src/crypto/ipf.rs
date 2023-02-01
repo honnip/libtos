@@ -55,7 +55,7 @@ impl ZipCrypto {
     }
 }
 
-pub struct IpfCrypto<R: std::io::Read> {
+pub(crate) struct IpfCrypto<R: std::io::Read> {
     reader: R,
     mode: IpfCryptoMode,
     keys: ZipCrypto,
@@ -103,11 +103,11 @@ impl<R: std::io::Read> std::io::Read for IpfCrypto<R> {
 }
 
 enum IpfCryptoMode {
-    /// Decrypt ciphered bytes and read these
+    /// Decrypted bytes
     Decrypt,
-    /// Encrypt plain bytes and read these
+    /// Encrypted bytes
     Encrypt,
-    /// Read bytes
+    /// pure bytes
     Stored,
 }
 
