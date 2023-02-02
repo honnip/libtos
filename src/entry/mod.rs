@@ -19,6 +19,14 @@ impl IpfEntry<'_> {
         PathBuf::from(self.header.archive_name.as_str())
     }
 
+    /// Get file name.
+    /// e.g. event1234.png, map.ies, blah.lua
+    pub fn file_name(&self) -> PathBuf {
+        // note that header.file_name is path actually
+        // so we need to get the last part
+        PathBuf::from(self.header.file_name.split('/').last().unwrap())
+    }
+
     /// Get path of entry excluding archive name.
     /// e.g. event_banner/event1234.png
     pub fn path(&self) -> PathBuf {
