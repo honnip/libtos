@@ -14,7 +14,7 @@ use crate::{
 };
 
 pub(crate) struct IpfArchiveHeader {
-    pub(crate) file_count: u16,
+    pub(crate) entry_count: u16,
     pub(crate) local_file_offset: u32,
     #[allow(dead_code)]
     pub(crate) header_offset: u32,
@@ -30,12 +30,14 @@ impl IpfArchiveHeader {
     fn parse(mut reader: (impl Read + Seek)) -> Result<Self> {
         let mut buffer = [0u8; 24];
         if reader.seek(SeekFrom::End(-24)).is_err() {
-            return Err(IpfError::InvalidArchive("Could not seek to header"));
+            return Err(IpfError::InvalidArchive(
+                "Failed to seek to header (last 24 bits)",
+            ));
         }
         reader.read_exact(&mut buffer)?;
 
         Ok(Self {
-            file_count: u16::from_le_bytes(buffer[0..2].try_into().unwrap()),
+            entry_count: u16::from_le_bytes(buffer[0..2].try_into().unwrap()),
             local_file_offset: u32::from_le_bytes(buffer[2..6].try_into().unwrap()),
             // and next 2 bytes are always 0x00
             header_offset: u32::from_le_bytes(buffer[8..12].try_into().unwrap()),
@@ -47,7 +49,7 @@ impl IpfArchiveHeader {
 
     pub fn into_bytes(self) -> Vec<u8> {
         let mut vec = Vec::with_capacity(24);
-        vec.extend_from_slice(&self.file_count.to_le_bytes());
+        vec.extend_from_slice(&self.entry_count.to_le_bytes());
         vec.extend_from_slice(&self.local_file_offset.to_le_bytes());
         vec.extend_from_slice(&[0u8; 2]);
         vec.extend_from_slice(&self.header_offset.to_le_bytes());
@@ -68,7 +70,7 @@ pub struct IpfArchive<R> {
     reader: R,
     #[allow(dead_code)]
     header: IpfArchiveHeader,
-    files: Vec<IpfEntryHeader>,
+    entries: Vec<IpfEntryHeader>,
 }
 
 impl<R: Read + Seek> IpfArchive<R> {
@@ -77,40 +79,42 @@ impl<R: Read + Seek> IpfArchive<R> {
         let header = IpfArchiveHeader::parse(&mut reader)?;
 
         if header.signature != [0x50, 0x4B, 0x05, 0x06] {
-            return Err(IpfError::InvalidArchive("Invalid magic signature"));
+            return Err(IpfError::InvalidArchive(
+                "Invalid magic signature. Not an IPF archive?",
+            ));
         }
 
-        let mut files = Vec::with_capacity(header.file_count.into());
+        let mut entries = Vec::with_capacity(header.entry_count.into());
         reader.seek(SeekFrom::Start(header.local_file_offset.into()))?;
 
         // read local file tables
-        for _ in 0..header.file_count {
+        for _ in 0..header.entry_count {
             let data_table = IpfEntryHeader::parse(&mut reader)?;
-            files.push(data_table);
+            entries.push(data_table);
         }
 
         Ok(Self {
             reader,
             header,
-            files,
+            entries,
         })
     }
 
     /// Length of files
     pub fn len(&self) -> usize {
-        self.files.len()
+        self.entries.len()
     }
 
     /// whether the archive is empty
     pub fn is_empty(&self) -> bool {
-        self.files.is_empty()
+        self.entries.is_empty()
     }
 
     pub fn by_index(&mut self, index: usize) -> Result<IpfEntry> {
         if index >= self.len() {
             return Err(IpfError::FileNotFound);
         }
-        let header = &self.files[index];
+        let header = &self.entries[index];
 
         self.reader
             .seek(SeekFrom::Start(header.data_offset.into()))?;
