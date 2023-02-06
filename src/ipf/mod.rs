@@ -5,11 +5,8 @@ use std::{
 };
 
 use crate::{
-    crypto::IpfCrypto,
-    entry::{IpfEntryHeader, IpfEntryReader},
-};
-use crate::{
-    entry::IpfEntry,
+    crypto::{IesReader, IpfCrypto},
+    entry::{IpfEntry, IpfEntryHeader, IpfEntryReader},
     error::{IpfError, Result},
 };
 
@@ -28,12 +25,12 @@ pub(crate) struct IpfArchiveHeader {
 
 impl IpfArchiveHeader {
     fn parse(mut reader: (impl Read + Seek)) -> Result<Self> {
-        let mut buffer = [0u8; 24];
         if reader.seek(SeekFrom::End(-24)).is_err() {
             return Err(IpfError::InvalidArchive(
-                "Failed to seek to header (last 24 bits)",
+                "Failed to seek the reader to header (last 24 bytes)",
             ));
         }
+        let mut buffer = [0u8; 24];
         reader.read_exact(&mut buffer)?;
 
         Ok(Self {
@@ -121,16 +118,28 @@ impl<R: Read + Seek> IpfArchive<R> {
         let limit_reader = (&mut self.reader as &mut dyn Read).take(header.compressed_size.into());
 
         if header.worth_compress() {
-            let crypto = IpfCrypto::new(limit_reader);
+            let crypto = IpfCrypto::new(limit_reader.into_inner());
+            // FIXME when is_some_and is stable
+            if header.extension().is_some() || header.extension().unwrap().to_lowercase() == "ies" {
+                // TODO learn and make this better
+                let mut reader = flate2::read::DeflateDecoder::new(crypto);
+                let mut buffer = vec![];
+                reader.read_to_end(&mut buffer)?;
+                let cursor = std::io::Cursor::new(buffer);
+                return Ok(IpfEntry {
+                    reader: IpfEntryReader::Ies(IesReader::new(cursor)),
+                    header: Cow::Borrowed(header),
+                });
+            }
+
             return Ok(IpfEntry {
-                reader: IpfEntryReader::Deflate(flate2::read::DeflateDecoder::new(crypto)),
+                reader: IpfEntryReader::Ipf(flate2::read::DeflateDecoder::new(crypto)),
                 header: Cow::Borrowed(header),
             });
         }
-        let mut ipf = IpfCrypto::new(limit_reader);
-        ipf.stored();
+
         Ok(IpfEntry {
-            reader: IpfEntryReader::Stored(ipf),
+            reader: IpfEntryReader::Stored(limit_reader),
             header: Cow::Borrowed(header),
         })
     }

@@ -1,11 +1,13 @@
 use std::{
     borrow::Cow,
-    io::{Read, Seek},
+    io::{Cursor, Read, Seek, Take},
     path::PathBuf,
 };
 
-use crate::crypto::IpfCrypto;
+use crate::crypto::{IesReader, IpfCrypto};
 use crate::error::{IpfError, Result};
+
+use flate2::read::DeflateDecoder;
 
 pub struct IpfEntry<'a> {
     pub(crate) reader: IpfEntryReader<'a>,
@@ -38,24 +40,6 @@ impl IpfEntry<'_> {
         let mut f = self.archive_name();
         f.push(self.path());
         f
-    }
-
-    /// Switch to encrypt mode
-    /// read/write encrypted bytes
-    pub fn encrypt(self) {
-        self.reader.encrypt();
-    }
-
-    /// Switch to decrypt mode
-    /// read/write decrypted bytes
-    pub fn decrypt(self) {
-        self.reader.decrypt();
-    }
-
-    /// switch to stored mode
-    /// read/write pure bytes
-    pub fn stored(self) {
-        self.reader.stored();
     }
 }
 
@@ -115,6 +99,13 @@ impl IpfEntryHeader {
         })
     }
 
+    pub(crate) fn extension(&self) -> Option<String> {
+        let extension = std::path::PathBuf::from(&self.file_name);
+        extension
+            .extension()
+            .map(|ext| ext.to_string_lossy().to_string())
+    }
+
     fn into_bytes(self) -> Vec<u8> {
         let mut array = Vec::new();
         array.append(&mut self.file_name.len().to_le_bytes().into());
@@ -153,38 +144,17 @@ impl From<IpfEntryHeader> for Vec<u8> {
 }
 
 pub(crate) enum IpfEntryReader<'a> {
-    Stored(IpfCrypto<std::io::Take<&'a mut dyn Read>>),
-    Deflate(flate2::read::DeflateDecoder<IpfCrypto<std::io::Take<&'a mut dyn Read>>>),
-}
-
-impl<'a> IpfEntryReader<'a> {
-    fn encrypt(self) {
-        match self {
-            IpfEntryReader::Stored(mut r) => r.encrypt(),
-            IpfEntryReader::Deflate(mut r) => r.get_mut().encrypt(),
-        }
-    }
-
-    fn decrypt(self) {
-        match self {
-            IpfEntryReader::Stored(mut r) => r.decrypt(),
-            IpfEntryReader::Deflate(mut r) => r.get_mut().decrypt(),
-        }
-    }
-
-    fn stored(self) {
-        match self {
-            IpfEntryReader::Stored(mut r) => r.stored(),
-            IpfEntryReader::Deflate(mut r) => r.get_mut().stored(),
-        }
-    }
+    Stored(Take<&'a mut dyn Read>),
+    Ipf(DeflateDecoder<IpfCrypto<&'a mut dyn Read>>),
+    Ies(IesReader<Cursor<Vec<u8>>>),
 }
 
 impl Read for IpfEntryReader<'_> {
     fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
         match self {
             IpfEntryReader::Stored(r) => r.read(buf),
-            IpfEntryReader::Deflate(r) => r.read(buf),
+            IpfEntryReader::Ipf(r) => r.read(buf),
+            IpfEntryReader::Ies(r) => r.read(buf),
         }
     }
 }

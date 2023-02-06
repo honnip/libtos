@@ -1,3 +1,4 @@
+use std::io;
 use std::num::Wrapping;
 
 const PASSWORD: [u8; 20] = [
@@ -42,12 +43,15 @@ impl ZipCrypto {
         ((temp * (temp ^ Wrapping(1))) >> 8).0 as u8
     }
 
+    #[allow(dead_code)]
+    /// Encrypt a single byte
     fn encrypt_byte(&mut self, plain_byte: u8) -> u8 {
         let cipher_byte = self.stream_byte() ^ plain_byte;
         self.update_key(plain_byte);
         cipher_byte
     }
 
+    /// Decrypt a single byte
     fn decrypt_byte(&mut self, cipher_byte: u8) -> u8 {
         let plain_byte = self.stream_byte() ^ cipher_byte;
         self.update_key(plain_byte);
@@ -55,60 +59,30 @@ impl ZipCrypto {
     }
 }
 
-pub(crate) struct IpfCrypto<R: std::io::Read> {
+pub(crate) struct IpfCrypto<R: io::Read> {
     reader: R,
-    mode: IpfCryptoMode,
     keys: ZipCrypto,
 }
 
-impl<R: std::io::Read> IpfCrypto<R> {
+impl<R: io::Read> IpfCrypto<R> {
     pub fn new(reader: R) -> Self {
         IpfCrypto {
             reader,
-            mode: IpfCryptoMode::Decrypt,
             keys: ZipCrypto::new(),
         }
     }
-
-    /// Encrypt bytes when read.
-    pub fn encrypt(&mut self) {
-        self.mode = IpfCryptoMode::Encrypt;
-    }
-
-    /// Decrypt bytes when read. This is default.
-    pub fn decrypt(&mut self) {
-        self.mode = IpfCryptoMode::Decrypt;
-    }
-
-    /// Do nothing when read.
-    pub fn stored(&mut self) {
-        self.mode = IpfCryptoMode::Stored;
-    }
 }
 
-impl<R: std::io::Read> std::io::Read for IpfCrypto<R> {
-    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+impl<R: io::Read> io::Read for IpfCrypto<R> {
+    fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         let result = self.reader.read(buf);
         for (index, byte) in buf.iter_mut().enumerate() {
             if index % 2 == 0 {
-                match self.mode {
-                    IpfCryptoMode::Decrypt => *byte = self.keys.decrypt_byte(*byte),
-                    IpfCryptoMode::Encrypt => *byte = self.keys.encrypt_byte(*byte),
-                    IpfCryptoMode::Stored => (),
-                }
+                *byte = self.keys.decrypt_byte(*byte);
             }
         }
         result
     }
-}
-
-enum IpfCryptoMode {
-    /// Decrypted bytes
-    Decrypt,
-    /// Encrypted bytes
-    Encrypt,
-    /// pure bytes
-    Stored,
 }
 
 /// precalculated crc32 table
