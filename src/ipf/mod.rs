@@ -1,6 +1,7 @@
 use std::{
     borrow::Cow,
     convert::TryInto,
+    fs::File,
     io::{prelude::*, Seek, SeekFrom},
 };
 
@@ -166,4 +167,11 @@ fn header_to_entry<'a>(
         reader: IpfEntryReader::Stored(limit_reader),
         header: Cow::Borrowed(header),
     })
+}
+
+impl IpfArchive<File> {
+    pub fn open(path: impl AsRef<std::path::Path>) -> Result<IpfArchive<File>> {
+        let reader = std::fs::File::open(path)?;
+        IpfArchive::new(reader)
+    }
 }
