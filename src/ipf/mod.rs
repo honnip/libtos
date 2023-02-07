@@ -120,7 +120,7 @@ impl<R: Read + Seek> IpfArchive<R> {
         if header.worth_compress() {
             let crypto = IpfCrypto::new(limit_reader.into_inner());
             // FIXME when is_some_and is stable
-            if header.extension().is_some() || header.extension().unwrap().to_lowercase() == "ies" {
+            if header.extension().is_some() && header.extension().unwrap().to_lowercase() == "ies" {
                 // TODO learn and make this better
                 let mut reader = flate2::read::DeflateDecoder::new(crypto);
                 let mut buffer = vec![];
