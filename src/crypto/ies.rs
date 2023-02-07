@@ -21,7 +21,6 @@ impl<R: Read + Seek> IesReader<R> {
 impl<R: Read + Seek> Read for IesReader<R> {
     fn read(&mut self, buf: &mut [u8]) -> io::Result<usize> {
         if self.cursor.is_none() {
-            println!("Parsing IES table...");
             let cursor = Cursor::new(IesTable::parse(&mut self.reader).unwrap().to_string());
             self.cursor = Some(cursor);
         }
@@ -171,7 +170,6 @@ impl IesColumn {
         reader.read_exact(&mut buffer)?;
 
         let name1 = decrypt(buffer[0..64].into()).unwrap();
-        println!("name1 bytes {:?}", name1.as_bytes());
         let name2 = decrypt(buffer[64..128].into()).unwrap();
         let is_string = buffer[128] != 0;
         let order = u16::from_le_bytes(buffer[134..136].try_into().unwrap());
