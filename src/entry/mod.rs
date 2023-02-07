@@ -1,6 +1,6 @@
 use std::{
     borrow::Cow,
-    io::{Cursor, Read, Seek, Take},
+    io::{Cursor, Read, Seek},
     path::PathBuf,
 };
 
@@ -16,9 +16,9 @@ pub struct IpfEntry<'a> {
 
 impl IpfEntry<'_> {
     /// Get name of archive.
-    /// e.g. xml_tool.ipf
+    /// e.g. example.ipf
     pub fn archive_name(&self) -> PathBuf {
-        PathBuf::from(self.header.archive_name.as_str())
+        self.header.archive_name()
     }
 
     /// Get file name.
@@ -26,16 +26,17 @@ impl IpfEntry<'_> {
     pub fn file_name(&self) -> PathBuf {
         // note that header.file_name is path actually
         // so we need to get the last part
-        PathBuf::from(self.header.file_name.split('/').last().unwrap())
+        self.header.file_name()
     }
 
     /// Get path of entry excluding archive name.
     /// e.g. event_banner/event1234.png
     pub fn path(&self) -> PathBuf {
-        PathBuf::from(self.header.file_name.as_str())
+        self.header.path()
     }
 
     /// Get full path of file
+    /// e.g. example.ipf/event_banner/event1234.png
     pub fn full_path(&self) -> PathBuf {
         let mut f = self.archive_name();
         f.push(self.path());
@@ -106,6 +107,18 @@ impl IpfEntryHeader {
             .map(|ext| ext.to_string_lossy().to_string())
     }
 
+    pub(crate) fn archive_name(&self) -> PathBuf {
+        PathBuf::from(&self.archive_name)
+    }
+
+    pub(crate) fn file_name(&self) -> PathBuf {
+        PathBuf::from(self.file_name.split('/').last().unwrap())
+    }
+
+    pub(crate) fn path(&self) -> PathBuf {
+        PathBuf::from(&self.file_name)
+    }
+
     fn into_bytes(self) -> Vec<u8> {
         let mut array = Vec::new();
         array.append(&mut self.file_name.len().to_le_bytes().into());
@@ -144,7 +157,7 @@ impl From<IpfEntryHeader> for Vec<u8> {
 }
 
 pub(crate) enum IpfEntryReader<'a> {
-    Stored(Take<&'a mut dyn Read>),
+    Stored(&'a mut dyn Read),
     Ipf(DeflateDecoder<IpfCrypto<&'a mut dyn Read>>),
     Ies(IesReader<Cursor<Vec<u8>>>),
 }

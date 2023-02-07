@@ -71,7 +71,7 @@ pub struct IpfArchive<R> {
 }
 
 impl<R: Read + Seek> IpfArchive<R> {
-    /// parse .ipf header from file
+    /// Read and create a IpfArchive
     pub fn new(mut reader: R) -> Result<IpfArchive<R>> {
         let header = IpfArchiveHeader::parse(&mut reader)?;
 
@@ -97,16 +97,17 @@ impl<R: Read + Seek> IpfArchive<R> {
         })
     }
 
-    /// Length of files
+    /// Number of files in the archive
     pub fn len(&self) -> usize {
         self.entries.len()
     }
 
-    /// whether the archive is empty
+    /// Whether the archive has no files
     pub fn is_empty(&self) -> bool {
         self.entries.is_empty()
     }
 
+    /// Get a file entry by index
     pub fn by_index(&mut self, index: usize) -> Result<IpfEntry> {
         if index >= self.len() {
             return Err(IpfError::FileNotFound);
@@ -115,32 +116,54 @@ impl<R: Read + Seek> IpfArchive<R> {
 
         self.reader
             .seek(SeekFrom::Start(header.data_offset.into()))?;
-        let limit_reader = (&mut self.reader as &mut dyn Read).take(header.compressed_size.into());
+        let limit_reader = (&mut self.reader as &mut dyn Read)
+            .take(header.compressed_size.into())
+            .into_inner();
 
-        if header.worth_compress() {
-            let crypto = IpfCrypto::new(limit_reader.into_inner());
-            // FIXME when is_some_and is stable
-            if header.extension().is_some() && header.extension().unwrap().to_lowercase() == "ies" {
-                // TODO learn and make this better
-                let mut reader = flate2::read::DeflateDecoder::new(crypto);
-                let mut buffer = vec![];
-                reader.read_to_end(&mut buffer)?;
-                let cursor = std::io::Cursor::new(buffer);
-                return Ok(IpfEntry {
-                    reader: IpfEntryReader::Ies(IesReader::new(cursor)),
-                    header: Cow::Borrowed(header),
-                });
+        header_to_entry(header, limit_reader)
+    }
+
+    /// Get a file entry by name
+    /// not using binary search because the entries are not sorted
+    /// use `by_index` if you know the index
+    pub fn by_name(&mut self, name: impl AsRef<std::path::Path>) -> Result<IpfEntry> {
+        let name = name.as_ref().to_string_lossy();
+        for (index, header) in self.entries.iter().enumerate() {
+            if header.file_name().to_string_lossy() == name.as_ref() {
+                return self.by_index(index);
             }
+        }
+        Err(IpfError::FileNotFound)
+    }
+}
 
+fn header_to_entry<'a>(
+    header: &'a IpfEntryHeader,
+    limit_reader: &'a mut dyn Read,
+) -> Result<IpfEntry<'a>> {
+    if header.worth_compress() {
+        let crypto = IpfCrypto::new(limit_reader);
+        // FIXME when is_some_and is stable
+        if header.extension().is_some() && header.extension().unwrap().to_lowercase() == "ies" {
+            // TODO learn and make this better
+            let mut reader = flate2::read::DeflateDecoder::new(crypto);
+            let mut buffer = vec![];
+            reader.read_to_end(&mut buffer)?;
+            let cursor = std::io::Cursor::new(buffer);
             return Ok(IpfEntry {
-                reader: IpfEntryReader::Ipf(flate2::read::DeflateDecoder::new(crypto)),
+                reader: IpfEntryReader::Ies(IesReader::new(cursor)),
                 header: Cow::Borrowed(header),
             });
         }
 
-        Ok(IpfEntry {
-            reader: IpfEntryReader::Stored(limit_reader),
+        return Ok(IpfEntry {
+            reader: IpfEntryReader::Ipf(flate2::read::DeflateDecoder::new(crypto)),
             header: Cow::Borrowed(header),
-        })
+        });
     }
+
+    Ok(IpfEntry {
+        reader: IpfEntryReader::Stored(limit_reader),
+        header: Cow::Borrowed(header),
+    })
 }
