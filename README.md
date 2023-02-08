@@ -14,3 +14,7 @@ fn main() -> Result<(), IpfError> {
     }
 }
 ```
+
+You can use `cargo run --example list` to run the above example.
+
+[More examples](examples)
