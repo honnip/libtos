@@ -7,4 +7,3 @@ edition = "2021"
 [dependencies]
 thiserror = "1"
 flate2 = "1"
-path-clean = "0.1"
