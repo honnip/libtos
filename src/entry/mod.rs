@@ -17,12 +17,16 @@ pub struct IpfEntry<'a> {
 impl IpfEntry<'_> {
     /// Get name of archive.
     /// e.g. example.ipf
+    ///
+    /// Sanitize before use
     pub fn archive_name(&self) -> PathBuf {
         self.header.archive_name()
     }
 
     /// Get file name.
     /// e.g. event1234.png, map.ies, blah.lua
+    ///
+    /// Sanitize before use
     pub fn file_name(&self) -> PathBuf {
         // note that header.file_name is path actually
         // so we need to get the last part
@@ -31,12 +35,16 @@ impl IpfEntry<'_> {
 
     /// Get path of entry excluding archive name.
     /// e.g. event_banner/event1234.png
+    ///
+    /// Sanitize before use
     pub fn path(&self) -> PathBuf {
         self.header.path()
     }
 
     /// Get full path of file
     /// e.g. example.ipf/event_banner/event1234.png
+    ///
+    /// Sanitize before use
     pub fn full_path(&self) -> PathBuf {
         let mut f = self.archive_name();
         f.push(self.path());
