@@ -14,13 +14,9 @@ use crate::{
 pub(crate) struct IpfArchiveHeader {
     pub(crate) entry_count: u16,
     pub(crate) local_file_offset: u32,
-    #[allow(dead_code)]
     pub(crate) header_offset: u32,
-    #[allow(dead_code)]
     pub(crate) signature: [u8; 4],
-    #[allow(dead_code)]
     pub(crate) base_revision: u32,
-    #[allow(dead_code)]
     pub(crate) revision: u32,
 }
 
@@ -125,7 +121,7 @@ impl<R: Read + Seek> IpfArchive<R> {
     }
 
     /// Get a file entry by name
-    /// not using binary search because the entries are not sorted
+    ///
     /// use `by_index` if you know the index
     pub fn by_name(&mut self, name: impl AsRef<std::path::Path>) -> Result<IpfEntry> {
         let name = name.as_ref().to_string_lossy();
