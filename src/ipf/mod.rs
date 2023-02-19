@@ -2,7 +2,7 @@ use std::{
     borrow::Cow,
     convert::TryInto,
     fs::File,
-    io::{prelude::*, Seek, SeekFrom},
+    io::{prelude::*, Seek, SeekFrom, Take},
 };
 
 use crate::{
@@ -10,6 +10,8 @@ use crate::{
     entry::{IpfEntry, IpfEntryHeader, IpfEntryReader},
     error::{IpfError, Result},
 };
+
+use flate2::read::DeflateDecoder;
 
 pub(crate) struct IpfArchiveHeader {
     pub(crate) entry_count: u16,
@@ -113,9 +115,7 @@ impl<R: Read + Seek> IpfArchive<R> {
 
         self.reader
             .seek(SeekFrom::Start(header.data_offset.into()))?;
-        let limit_reader = (&mut self.reader as &mut dyn Read)
-            .take(header.compressed_size.into())
-            .into_inner();
+        let limit_reader = (&mut self.reader as &mut dyn Read).take(header.compressed_size.into());
 
         header_to_entry(header, limit_reader)
     }
@@ -136,14 +136,14 @@ impl<R: Read + Seek> IpfArchive<R> {
 
 fn header_to_entry<'a>(
     header: &'a IpfEntryHeader,
-    limit_reader: &'a mut dyn Read,
+    limit_reader: Take<&'a mut dyn Read>,
 ) -> Result<IpfEntry<'a>> {
     if header.worth_compress() {
         let crypto = IpfCrypto::new(limit_reader);
         // FIXME when is_some_and is stable
         if header.extension().is_some() && header.extension().unwrap().to_lowercase() == "ies" {
             // TODO learn and make this better
-            let mut reader = flate2::read::DeflateDecoder::new(crypto);
+            let mut reader = DeflateDecoder::new(crypto);
             let mut buffer = vec![];
             reader.read_to_end(&mut buffer)?;
             let cursor = std::io::Cursor::new(buffer);
@@ -154,7 +154,7 @@ fn header_to_entry<'a>(
         }
 
         return Ok(IpfEntry {
-            reader: IpfEntryReader::Ipf(flate2::read::DeflateDecoder::new(crypto)),
+            reader: IpfEntryReader::Ipf(DeflateDecoder::new(crypto)),
             header: Cow::Borrowed(header),
         });
     }

@@ -1,6 +1,6 @@
 use std::{
     borrow::Cow,
-    io::{Cursor, Read, Seek},
+    io::{Cursor, Read, Seek, Take},
     path::PathBuf,
 };
 
@@ -165,8 +165,8 @@ impl From<IpfEntryHeader> for Vec<u8> {
 }
 
 pub(crate) enum IpfEntryReader<'a> {
-    Stored(&'a mut dyn Read),
-    Ipf(DeflateDecoder<IpfCrypto<&'a mut dyn Read>>),
+    Stored(Take<&'a mut dyn Read>),
+    Ipf(DeflateDecoder<IpfCrypto<Take<&'a mut dyn Read>>>),
     Ies(IesReader<Cursor<Vec<u8>>>),
 }
 
