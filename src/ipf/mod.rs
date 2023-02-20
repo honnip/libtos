@@ -13,6 +13,7 @@ use crate::{
 
 use flate2::read::DeflateDecoder;
 
+#[derive(Clone)]
 pub(crate) struct IpfArchiveHeader {
     pub(crate) entry_count: u16,
     pub(crate) local_file_offset: u32,
@@ -62,6 +63,7 @@ impl From<IpfArchiveHeader> for Vec<u8> {
     }
 }
 
+#[derive(Clone)]
 pub struct IpfArchive<R> {
     reader: R,
     #[allow(dead_code)]
